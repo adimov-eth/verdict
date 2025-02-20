@@ -1,0 +1,9 @@
+---
+description: Rules for React Native Expo App
+globs: app/**/**
+---
+
+# Your rule content
+
+- You can @ files here
+- You can use markdown but dont have to
