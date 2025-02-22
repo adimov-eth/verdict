@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 
 
-const uri = `http://172.20.10.5:3000`;
+const uri = `https://v.bkk.lol`;
 
 
 // Create a client

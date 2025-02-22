@@ -12,7 +12,7 @@ import { apiRequest } from '../lib/queryClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { blobUrlToBase64 } from '../lib/audioUtils';
 
-const uri = `http://172.20.10.5:3000`;
+const uri = `https://v.bkk.lol`;
 
 interface APIStatus {
   hasAccess: boolean;
