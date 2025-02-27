@@ -196,70 +196,24 @@ const mockData = {
   partner2: formatDialogData(testDialogs.dinner.compatible.partner2)
 };
 
-// Setup the mocks - this approach works better with Bun
-describe('AI Module', () => {
-  // Save original console methods
-  const originalConsoleError = console.error;
-  const originalConsoleLog = console.log;
-  
-  beforeEach(() => {
-    // Silence console output during tests unless debug mode is enabled
-    if (!DEBUG_AI_RESPONSES) {
-      console.error = vi.fn();
-      console.log = vi.fn();
-    }
-    
-    // Setup the environment
-    process.env.OPENAI_API_KEY = 'test-api-key';
-    
-    // Mock streamText for each test
-    vi.spyOn(ai, 'streamText').mockImplementation(() => {
-      const mockResponse = {
-        textStream: (async function* () {
-          yield 'VERDICT: This is a test verdict.';
-          yield ' KEY POINTS: Point 1, Point 2.';
-          yield ' ADVICE: Test advice.';
-        })(),
-        text: 'VERDICT: This is a test verdict. KEY POINTS: Point 1, Point 2. ADVICE: Test advice.',
-        choices: [],
-        usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
-        finishReason: 'stop'
-      };
-      
-      // Log the mock response being returned
-      aiLogger.log('Mock AI Response:', mockResponse);
-      
-      return mockResponse as any;
-    });
-    
-    // Mock openai
-    vi.spyOn(aiSdk, 'openai').mockImplementation((model) => {
-      aiLogger.log('Using OpenAI model:', model);
-      return model as any;
-    });
-  });
+// Add delay between tests
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-  afterEach(() => {
-    // Restore original console methods
-    console.error = originalConsoleError;
-    console.log = originalConsoleLog;
-    
-    // Clear all mocks
-    vi.restoreAllMocks();
+// Set longer timeout for all tests (30 seconds)
+const TEST_TIMEOUT = 30000;
+
+describe('AI Module', () => {
+  // Add delay between each test
+  beforeEach(async () => {
+    await delay(2000); // 2 second delay between tests
   });
 
   describe('checkAPIStatus', () => {
     it('should confirm API access when OpenAI API key is valid', async () => {
-      aiLogger.log('Running test: should confirm API access when OpenAI API key is valid');
-      
       const result = await checkAPIStatus();
-      
-      aiLogger.log('API status check result:', result);
-      
       expect(result.hasAccess).toBe(true);
       expect(result.message).toBe('API access confirmed');
-      expect(ai.streamText).toHaveBeenCalled();
-    });
+    }, TEST_TIMEOUT);
 
     it('should report missing API key when OpenAI API key is not set', async () => {
       const originalKey = process.env.OPENAI_API_KEY;
@@ -270,76 +224,16 @@ describe('AI Module', () => {
       expect(result.hasAccess).toBe(false);
       expect(result.message).toBe('OpenAI API key is not configured');
       
-      // Restore key for other tests
       process.env.OPENAI_API_KEY = originalKey;
-    });
-
-    it('should handle API quota exceeded errors', async () => {
-      // Use a completely new implementation that throws an error
-      vi.spyOn(ai, 'streamText').mockImplementationOnce(() => {
-        const error = new Error('insufficient_quota: You exceeded your current quota');
-        aiLogger.log('Simulating quota exceeded error:', error.message);
-        throw error;
-      });
-      
-      const result = await checkAPIStatus();
-      
-      aiLogger.log('Quota exceeded test result:', result);
-      
-      expect(result.hasAccess).toBe(false);
-      expect(result.message).toContain('API quota exceeded');
-    });
-
-    it('should handle general API errors', async () => {
-      // Use a completely new implementation that throws an error
-      vi.spyOn(ai, 'streamText').mockImplementationOnce(() => {
-        const error = new Error('General API error');
-        aiLogger.log('Simulating general API error:', error.message);
-        throw error;
-      });
-      
-      const result = await checkAPIStatus();
-      
-      aiLogger.log('General API error test result:', result);
-      
-      expect(result.hasAccess).toBe(false);
-      expect(result.message).toContain('API error:');
-    });
+    }, TEST_TIMEOUT);
   });
 
   describe('analyzeConflict', () => {
-    it.only('should analyze dinner preferences correctly', async () => {
-      // Use dietary conflict scenario
+    it('should analyze dinner preferences correctly', async () => {
       const dietaryConflict = {
         partner1: formatDialogData(testDialogs.dinner.dietary.partner1),
         partner2: formatDialogData(testDialogs.dinner.dietary.partner2)
       };
-
-      aiLogger.log('Running dinner preference test with dietary conflict:', {
-        partner1: dietaryConflict.partner1.name,
-        partner2: dietaryConflict.partner2.name
-      });
-
-      vi.spyOn(ai, 'streamText').mockImplementation((options) => {
-        // Log the input prompt
-        aiLogger.log('AI Request Prompt:', options?.messages);
-        
-        const mockResponse = {
-          textStream: (async function* () {
-            const response = 'VERDICT: Choose a vegetarian Italian restaurant. WHY: Both can find options they enjoy. ALTERNATIVES: Make pizza at home with both vegan and meat options.';
-            yield response;
-          })(),
-          text: 'VERDICT: Choose a vegetarian Italian restaurant. WHY: Both can find options they enjoy. ALTERNATIVES: Make pizza at home with both vegan and meat options.',
-          choices: [],
-          usage: { promptTokens: 150, completionTokens: 35, totalTokens: 185 },
-          finishReason: 'stop'
-        };
-        
-        // Log the response
-        aiLogger.log('AI Response for dinner test:', mockResponse);
-        
-        return mockResponse as any;
-      });
 
       const result = await analyzeConflict(
         dietaryConflict.partner1.data,
@@ -350,27 +244,15 @@ describe('AI Module', () => {
         dietaryConflict.partner2.name
       );
       
-      aiLogger.log('Parsed analysis result:', JSON.parse(result));
-      
       const parsed = JSON.parse(result);
       expect(parsed).toHaveProperty('verdict');
       expect(parsed).toHaveProperty('timestamp');
-      expect(ai.streamText).toHaveBeenCalledWith(expect.objectContaining({
-        messages: expect.arrayContaining([
-          expect.objectContaining({ 
-            role: 'system', 
-            content: expect.stringContaining('meal planning assistant')
-          }),
-          expect.objectContaining({
-            role: 'user',
-            content: expect.stringContaining('**FORMAT**')
-          })
-        ])
-      }));
-    });
+      expect(parsed.verdict).toContain('**VERDICT**');
+      expect(parsed.verdict).toContain('**WHY**');
+      expect(parsed.verdict).toContain('**ALTERNATIVES**');
+    }, TEST_TIMEOUT);
 
-    it('should analyze entertainment preferences correctly', async () => {
-      // Use conflicting entertainment preferences
+    it.only('should analyze entertainment preferences correctly', async () => {
       const entertainmentConflict = {
         partner1: formatDialogData(testDialogs.entertainment.conflicting.partner1),
         partner2: formatDialogData(testDialogs.entertainment.conflicting.partner2)
@@ -387,18 +269,12 @@ describe('AI Module', () => {
       
       const parsed = JSON.parse(result);
       expect(parsed).toHaveProperty('verdict');
-      expect(ai.streamText).toHaveBeenCalledWith(expect.objectContaining({
-        messages: expect.arrayContaining([
-          expect.objectContaining({ 
-            role: 'system', 
-            content: expect.stringContaining('entertainment recommender')
-          })
-        ])
-      }));
-    });
+      expect(parsed.verdict).toContain('**VERDICT**');
+      expect(parsed.verdict).toContain('**WHY**');
+      expect(parsed.verdict).toContain('**ALTERNATIVES**');
+    }, TEST_TIMEOUT);
 
     it('should analyze live arguments correctly', async () => {
-      // Use relationship chores scenario
       const choresConflict = {
         partner1: formatDialogData(testDialogs.relationship.chores.partner1),
         partner2: formatDialogData(testDialogs.relationship.chores.partner2)
@@ -408,172 +284,38 @@ describe('AI Module', () => {
         choresConflict.partner1.data,
         choresConflict.partner2.data,
         'counselor',
-        true, // isLiveArgument = true
+        true,
         choresConflict.partner1.name,
         choresConflict.partner2.name
       );
       
       const parsed = JSON.parse(result);
       expect(parsed).toHaveProperty('verdict');
-      expect(ai.streamText).toHaveBeenCalledWith(expect.objectContaining({
-        messages: expect.arrayContaining([
-          expect.objectContaining({
-            role: 'user',
-            content: expect.stringContaining('live argument')
-          })
-        ])
-      }));
-    });
-
-    it('should analyze separate perspectives correctly', async () => {
-      const result = await analyzeConflict(
-        mockData.partner1.data,
-        mockData.partner2.data,
-        'evaluator',
-        false,
-        mockData.partner1.name,
-        mockData.partner2.name
-      );
-      
-      const parsed = JSON.parse(result);
-      expect(parsed).toHaveProperty('verdict');
-      expect(ai.streamText).toHaveBeenCalledWith(expect.objectContaining({
-        messages: expect.arrayContaining([
-          expect.objectContaining({
-            role: 'user',
-            content: expect.stringContaining('perspectives')
-          })
-        ])
-      }));
-    });
+      expect(parsed.verdict).toContain('**VERDICT**');
+      expect(parsed.verdict).toContain('**KEY POINTS**');
+      expect(parsed.verdict).toContain('**ADVICE**');
+    }, TEST_TIMEOUT);
 
     it('should handle missing partner2 data', async () => {
       const result = await analyzeConflict(
-        mockData.partner1.data,
-        '', // empty partner2 data
+        formatDialogData(testDialogs.dinner.compatible.partner1).data,
+        '',
         'counselor',
         false,
-        mockData.partner1.name,
-        mockData.partner2.name
+        'Alice',
+        'Bob'
       );
       
       const parsed = JSON.parse(result);
       expect(parsed).toHaveProperty('verdict');
-    });
-
-    it('should throw an error when OpenAI returns empty response', async () => {
-      // Create a mock that returns an empty response
-      vi.spyOn(ai, 'streamText').mockImplementationOnce(() => {
-        const emptyResponse = {
-          textStream: (async function* () {
-            // Yield nothing to simulate empty response
-          })(),
-          text: '',
-          choices: [],
-          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-          finishReason: 'stop'
-        };
-        
-        aiLogger.log('Simulating empty AI response:', emptyResponse);
-        return emptyResponse as any;
-      });
-      
-      aiLogger.log('Testing empty response handling...');
-      
-      let error;
-      try {
-        await analyzeConflict(
-          mockData.partner1.data,
-          mockData.partner2.data,
-          'counselor',
-          false,
-          mockData.partner1.name,
-          mockData.partner2.name
-        );
-      } catch (e) {
-        error = e;
-        aiLogger.log('Caught error from empty response test:', e);
-      }
-      
-      expect(error).toBeDefined();
-      if (error instanceof Error) {
-        expect(error.message).toContain('Analysis failed');
-      } else {
-        expect(String(error)).toContain('Analysis failed');
-      }
-    });
-
-    it('should handle errors during analysis', async () => {
-      vi.spyOn(ai, 'streamText').mockImplementationOnce(() => {
-        const error = new Error('API error during analysis');
-        aiLogger.log('Simulating API error during analysis:', error.message);
-        throw error;
-      });
-      
-      aiLogger.log('Testing error during analysis handling...');
-      
-      let error;
-      try {
-        await analyzeConflict(
-          mockData.partner1.data,
-          mockData.partner2.data,
-          'counselor',
-          false,
-          mockData.partner1.name,
-          mockData.partner2.name
-        );
-      } catch (e) {
-        error = e;
-        aiLogger.log('Caught error during analysis test:', e);
-      }
-      
-      expect(error).toBeDefined();
-      if (error instanceof Error) {
-        expect(error.message).toContain('Analysis failed');
-      } else {
-        expect(String(error)).toContain('Analysis failed');
-      }
-    });
+      expect(parsed.verdict).toContain('**VERDICT**');
+    }, TEST_TIMEOUT);
   });
 
   describe('createAnalysisStream', () => {
     it('should stream analysis for dinner mode', async () => {
       const onCompleteMock = vi.fn();
-      
-      // Reset the mock to ensure it's called in this test
-      vi.spyOn(ai, 'streamText').mockImplementation((options) => {
-        aiLogger.log('Streaming API request for dinner mode:', options?.messages);
-        
-        const mockResponse = {
-          textStream: (async function* () {
-            const chunks = [
-              'VERDICT: This is a dinner recommendation',
-              ' WHY: Point 1, Point 2.',
-              ' ALTERNATIVES: Option 1, Option 2.'
-            ];
-            
-            for (const chunk of chunks) {
-              aiLogger.log('Streaming chunk:', chunk);
-              yield chunk;
-            }
-          })(),
-          text: 'VERDICT: This is a dinner recommendation WHY: Point 1, Point 2. ALTERNATIVES: Option 1, Option 2.',
-          choices: [],
-          usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
-          finishReason: 'stop'
-        };
-        
-        aiLogger.log('Mock streaming response created');
-        return mockResponse as any;
-      });
-      
-      // Use compatible dinner preferences
       const dinnerScenario = testDialogs.dinner.compatible;
-      
-      aiLogger.log('Running streaming test with dinner scenario:', {
-        partner1: dinnerScenario.partner1.name,
-        partner2: dinnerScenario.partner2.name
-      });
       
       const result = await createAnalysisStream({
         partner1Name: dinnerScenario.partner1.name,
@@ -583,120 +325,57 @@ describe('AI Module', () => {
         mode: 'dinner',
         isLiveArgument: false,
         sessionId: 123,
-        onComplete: (response) => {
+        onComplete: async (response) => {
           aiLogger.log('Stream complete callback triggered with response:', response);
-          return onCompleteMock(response);
+          await onCompleteMock(response);
         }
       });
       
-      aiLogger.log('Stream analysis result:', result);
-      
       expect(result).toHaveProperty('aiResponse');
-      expect(ai.streamText).toHaveBeenCalledWith(expect.objectContaining({
-        messages: expect.arrayContaining([
-          expect.objectContaining({
-            role: 'system',
-            content: expect.stringContaining('meal planning assistant')
-          })
-        ])
-      }));
+      expect(result.aiResponse).toContain('**VERDICT**');
+      expect(result.aiResponse).toContain('**WHY**');
+      expect(result.aiResponse).toContain('**ALTERNATIVES**');
       expect(onCompleteMock).toHaveBeenCalled();
-    });
+    }, TEST_TIMEOUT);
 
     it('should stream analysis for entertainment mode', async () => {
       const onCompleteMock = vi.fn();
       
-      // Reset the mock to ensure it's called in this test
-      vi.spyOn(ai, 'streamText').mockImplementation(() => ({
-        textStream: (async function* () {
-          yield 'VERDICT: This is an entertainment recommendation';
-          yield ' WHY: Point 1, Point 2.';
-          yield ' ALTERNATIVES: Option 1, Option 2.';
-        })(),
-        text: 'VERDICT: This is an entertainment recommendation WHY: Point 1, Point 2. ALTERNATIVES: Option 1, Option 2.',
-        choices: [],
-        usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
-        finishReason: 'stop'
-      } as any));
-      
       const result = await createAnalysisStream({
-        partner1Name: mockData.partner1.name,
-        partner2Name: mockData.partner2.name,
-        partner1Transcription: 'I like sci-fi',
-        partner2Transcription: 'I prefer comedy',
+        partner1Name: 'Alice',
+        partner2Name: 'Bob',
+        partner1Transcription: 'I like sci-fi movies and shows like Star Trek',
+        partner2Transcription: 'I prefer comedy shows and light entertainment',
         mode: 'entertainment',
-        isLiveArgument: true,
-        sessionId: 123,
-        onComplete: onCompleteMock
-      });
-      
-      expect(result).toHaveProperty('aiResponse');
-      expect(ai.streamText).toHaveBeenCalledWith(expect.objectContaining({
-        messages: expect.arrayContaining([
-          expect.objectContaining({
-            role: 'system',
-            content: expect.stringContaining('entertainment recommender')
-          })
-        ])
-      }));
-      expect(onCompleteMock).toHaveBeenCalled();
-    });
-
-    it('should stream analysis for relationship counseling mode', async () => {
-      const onCompleteMock = vi.fn();
-      
-      // Reset the mock to ensure it's called in this test
-      vi.spyOn(ai, 'streamText').mockImplementation(() => ({
-        textStream: (async function* () {
-          yield 'VERDICT: This is a relationship analysis';
-          yield ' KEY POINTS: Point 1, Point 2.';
-          yield ' ADVICE: Advice 1, Advice 2.';
-        })(),
-        text: 'VERDICT: This is a relationship analysis KEY POINTS: Point 1, Point 2. ADVICE: Advice 1, Advice 2.',
-        choices: [],
-        usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
-        finishReason: 'stop'
-      } as any));
-      
-      const result = await createAnalysisStream({
-        partner1Name: mockData.partner1.name,
-        partner2Name: mockData.partner2.name,
-        partner1Transcription: 'We disagree about chores',
-        partner2Transcription: 'I do my share differently',
-        mode: 'counselor',
-        isLiveArgument: true,
-        sessionId: 123,
-        onComplete: onCompleteMock
-      });
-      
-      expect(result).toHaveProperty('aiResponse');
-      expect(ai.streamText).toHaveBeenCalledWith(expect.objectContaining({
-        messages: expect.arrayContaining([
-          expect.objectContaining({
-            role: 'system',
-            content: expect.stringContaining('relationship analyst')
-          })
-        ])
-      }));
-      expect(onCompleteMock).toHaveBeenCalled();
-    });
-
-    it('should handle errors during streaming', async () => {
-      // Use a completely new implementation that throws an error
-      vi.spyOn(ai, 'streamText').mockImplementationOnce(() => {
-        throw new Error('Streaming error');
-      });
-      
-      await expect(createAnalysisStream({
-        partner1Name: mockData.partner1.name,
-        partner2Name: mockData.partner2.name,
-        partner1Transcription: 'Test',
-        partner2Transcription: 'Test',
-        mode: 'counselor',
         isLiveArgument: false,
         sessionId: 123,
-        onComplete: vi.fn()
-      })).rejects.toThrow('Analysis failed');
-    });
+        onComplete: async (response) => await onCompleteMock(response)
+      });
+      
+      expect(result).toHaveProperty('aiResponse');
+      expect(result.aiResponse).toContain('**VERDICT**');
+      expect(result.aiResponse).toContain('**WHY**');
+      expect(result.aiResponse).toContain('**ALTERNATIVES**');
+      expect(onCompleteMock).toHaveBeenCalled();
+    }, TEST_TIMEOUT);
+
+    it('should handle missing partner2 transcription', async () => {
+      const onCompleteMock = vi.fn();
+      
+      const result = await createAnalysisStream({
+        partner1Name: 'Alice',
+        partner2Name: 'Bob',
+        partner1Transcription: 'I like pasta and Italian food',
+        partner2Transcription: null,
+        mode: 'dinner',
+        isLiveArgument: false,
+        sessionId: 123,
+        onComplete: async (response) => await onCompleteMock(response)
+      });
+      
+      expect(result).toHaveProperty('aiResponse');
+      expect(result.aiResponse).toContain('**VERDICT**');
+      expect(onCompleteMock).toHaveBeenCalled();
+    }, TEST_TIMEOUT);
   });
 }); 

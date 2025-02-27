@@ -212,9 +212,9 @@ ${mode === "counselor"
   } catch (error) {
     console.error('[AI] Analysis error:', error);
     console.error('[AI] Error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : 'No stack trace'
     });
     throw new Error('Analysis failed. Please try again.');
   }
