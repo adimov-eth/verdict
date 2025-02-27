@@ -208,6 +208,33 @@ describe('AI Module', () => {
     await delay(2000); // 2 second delay between tests
   });
 
+
+  // a single test to edit and see how prompts are working
+  describe.only('test prompts', () => {
+    it('should analyze SOMETHING', async () => {
+      const dietaryConflict = {
+        partner1: formatDialogData(testDialogs.dinner.dietary.partner1),
+        partner2: formatDialogData(testDialogs.dinner.dietary.partner2)
+      };
+
+      const result = await analyzeConflict(
+        dietaryConflict.partner1.data,
+        dietaryConflict.partner2.data,
+        'dinner',
+        false,
+        dietaryConflict.partner1.name,
+        dietaryConflict.partner2.name
+      );
+      
+      const parsed = JSON.parse(result);
+      expect(parsed).toHaveProperty('verdict');
+      expect(parsed).toHaveProperty('timestamp');
+      expect(parsed.verdict).toContain('**VERDICT**');
+      expect(parsed.verdict).toContain('**WHY**');
+      expect(parsed.verdict).toContain('**ALTERNATIVES**');
+    }, TEST_TIMEOUT);
+  });
+
   describe('checkAPIStatus', () => {
     it('should confirm API access when OpenAI API key is valid', async () => {
       const result = await checkAPIStatus();
@@ -252,7 +279,7 @@ describe('AI Module', () => {
       expect(parsed.verdict).toContain('**ALTERNATIVES**');
     }, TEST_TIMEOUT);
 
-    it.only('should analyze entertainment preferences correctly', async () => {
+    it('should analyze entertainment preferences correctly', async () => {
       const entertainmentConflict = {
         partner1: formatDialogData(testDialogs.entertainment.conflicting.partner1),
         partner2: formatDialogData(testDialogs.entertainment.conflicting.partner2)
@@ -291,9 +318,8 @@ describe('AI Module', () => {
       
       const parsed = JSON.parse(result);
       expect(parsed).toHaveProperty('verdict');
-      expect(parsed.verdict).toContain('**VERDICT**');
-      expect(parsed.verdict).toContain('**KEY POINTS**');
-      expect(parsed.verdict).toContain('**ADVICE**');
+      expect(parsed.verdict).toContain('**KEY INSIGHTS**');
+      expect(parsed.verdict).toContain('**RESOLUTION**');
     }, TEST_TIMEOUT);
 
     it('should handle missing partner2 data', async () => {
@@ -308,9 +334,11 @@ describe('AI Module', () => {
       
       const parsed = JSON.parse(result);
       expect(parsed).toHaveProperty('verdict');
-      expect(parsed.verdict).toContain('**VERDICT**');
+      expect(parsed.verdict).toContain('**KEY INSIGHTS**');
+      expect(parsed.verdict).toContain('**RESOLUTION**');
     }, TEST_TIMEOUT);
   });
+
 
   describe('createAnalysisStream', () => {
     it('should stream analysis for dinner mode', async () => {
@@ -376,6 +404,29 @@ describe('AI Module', () => {
       expect(result).toHaveProperty('aiResponse');
       expect(result.aiResponse).toContain('**VERDICT**');
       expect(onCompleteMock).toHaveBeenCalled();
+    }, TEST_TIMEOUT);
+  });
+
+  describe('evaluator mode tests', () => {
+    it('should analyze relationship arguments correctly in evaluator mode', async () => {
+      const financesConflict = {
+        partner1: formatDialogData(testDialogs.relationship.finances.partner1),
+        partner2: formatDialogData(testDialogs.relationship.finances.partner2)
+      };
+
+      const result = await analyzeConflict(
+        financesConflict.partner1.data,
+        financesConflict.partner2.data,
+        'evaluator',
+        false,
+        financesConflict.partner1.name,
+        financesConflict.partner2.name
+      );
+      
+      const parsed = JSON.parse(result);
+      expect(parsed).toHaveProperty('verdict');
+      expect(parsed.verdict).toContain('**WINNER**');
+      expect(parsed.verdict).toContain('**WHY**');
     }, TEST_TIMEOUT);
   });
 }); 
